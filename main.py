@@ -1,8 +1,17 @@
-import os
 from docx import Document
+from tkinter import font
+from docx.shared import Pt
+from docx import Document
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from tkinter import filedialog, messagebox
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk
 from ttkthemes import ThemedTk
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import os
+
 
 
 def extract_text_from_docx(file_path, keywords):
@@ -39,68 +48,112 @@ def wrap_text(text, max_line_length):
 
 
 def select_directory_and_scan(text_widget, status_label):
-    print("Function called!")  # Debugging print
+    print("Function called!")
 
     keywords = keywords_entry.get().split(',')
     directory = filedialog.askdirectory()
 
-    print(f"Directory selected: {directory}")  # Debugging print
+    print(f"Directory selected: {directory}")
 
     keyword_counts = {keyword: 0 for keyword in keywords}
+    files_with_keywords = []
 
     if directory:
         text_widget.delete(1.0, tk.END)
 
-        file_contents = []  # Temporary list to hold file contents
-
         for filename in os.listdir(directory):
-            print(f"Processing file: {filename}")  # Debugging print
+            print(f"Processing file: {filename}")
 
             if filename.endswith(".docx"):
                 full_path = os.path.join(directory, filename)
                 try:
                     found_keywords, extracted_text = extract_text_from_docx(full_path, keywords)
 
-                    # Only process the file if any keywords are found
                     if found_keywords:
                         for keyword in found_keywords:
                             keyword_counts[keyword] += 1
 
-                        wrapped_text = wrap_text(extracted_text, max_line_length=130)
+                        files_with_keywords.append((filename, found_keywords))
 
-                        # Prepare file content to append
-                        file_data = f"---------------------------------------------------------------------------" \
-                                    f"------------------------------------------------------------------------\n{filename}:\n" \
-                                    f"Keywords found: {', '.join(found_keywords)}\n\n{wrapped_text}\n\n"
-                        lines = file_data.split('\n')
-                        for index, line in enumerate(lines):
-                            if index == 0:  # Color the filename red
-                                result_text.insert(tk.END, "                    " + line + '\n', ("red", "center"))
-                            else:  # Rest of the content
-                                result_text.insert(tk.END, "                    " + line + '\n', ("right", "center"))
+                        wrapped_text = wrap_text(extracted_text, max_line_length=130)  # Adjust line length
+
+                        text_widget.insert(tk.END, f"\n{'-' * 100}\n", ("normal",))
+                        text_widget.insert(tk.END, f"File: {filename}\n", ("filename",))
+                        text_widget.insert(tk.END, f"Keywords found: {', '.join(found_keywords)}\n", ("normal",))
+                        text_widget.insert(tk.END, f"{'-' * 100}\n", ("normal",))
+                        text_widget.insert(tk.END, f"{wrapped_text}\n", ("normal",))
+                        text_widget.insert(tk.END, f"{'-' * 100}\n\n", ("normal",))
 
                 except Exception as e:
                     print(f"Error processing file {filename}. Error: {e}")
 
-        summary = "Summary:\n"
-        for keyword, count in keyword_counts.items():
-            summary += f"We found the keyword '{keyword}' in {count} files.\n"
+        text_widget.tag_configure("normal", justify="center", font=("Arial", 12))
+        text_widget.tag_configure("filename", justify="center", font=("Arial", 16, "bold"))
+        text_widget.tag_configure("summary", justify="center", font=("Arial", 20, "bold"), foreground="#008080")
 
-        # First insert the summary
-        text_widget.insert(tk.END, summary + "\n\n", ("bold", "center"))
+        summary = "\n\nSummary:\n"
+        for keyword, count in keyword_counts.items():
+            summary += f"We found the keyword '{keyword}' in {count} files:\n"
+
+        text_widget.insert("1.0", summary, ("summary",))
+
+        # Add buttons for copying and saving as Word file
+        copy_button = tk.Button(main_frame, text="Copy Output", font=button_font_style,
+                                bg="#5E81AC", fg=font_color, activebackground="#88C0D0", relief=tk.FLAT,
+                                padx=20, pady=10, command=lambda: copy_output(text_widget))
+        copy_button.pack(pady=10)
+
+        save_button = tk.Button(main_frame, text="Save as Word", font=button_font_style,
+                                bg="#5E81AC", fg=font_color, activebackground="#88C0D0", relief=tk.FLAT,
+                                padx=20, pady=10, command=lambda: save_as_word(text_widget))
+        save_button.pack(pady=10)
+
+
+
+def copy_output(text_widget):
+    output_text = text_widget.get("1.0", tk.END)
+    root.clipboard_clear()
+    root.clipboard_append(output_text)
+    root.update()
+
+
+def save_as_word(text_widget):
+    output_text = text_widget.get("1.0", tk.END)
+    file_path = filedialog.asksaveasfilename(defaultextension=".docx", filetypes=[("Word Files", "*.docx")])
+
+    if file_path:
+        doc = Document()
+
+        # Add extracted text with formatting
+        paragraphs = output_text.split('\n')
+        for paragraph in paragraphs:
+            if paragraph.startswith("-"):
+                p = doc.add_paragraph(paragraph)
+            elif paragraph.startswith("File:"):
+                p = doc.add_paragraph(paragraph)
+            elif paragraph.startswith("Keywords found:"):
+                p = doc.add_paragraph(paragraph)
+            else:
+                p = doc.add_paragraph(paragraph)
+
+            # Set paragraph alignment to right-to-left
+            p.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+
+        # Save the document
+        doc.save(file_path)
 
 
 # Set up the main window
 root = ThemedTk(theme="equilux")
 root.title("Keyword-Based Files Scanner")
-root.geometry("1300x900")
+root.geometry("1600x1000")
 
 # Define styles and colors
 bg_color = "#2E3440"  # Dark background
 font_color = "#ECEFF4"  # Light font color
-font_style = ("Ubuntu", 14)
-header_font_style = ("Ubuntu", 20, "bold")
-button_font_style = ("Ubuntu", 14)
+font_style = ("Ariel", 14)
+header_font_style = ("Ariel", 20, "bold")
+button_font_style = ("Ariel", 14)
 
 # Styling frames and labels for a consistent look
 style = ttk.Style()
@@ -126,6 +179,7 @@ button = tk.Button(main_frame, text="Select a Folder", font=button_font_style,
                    command=lambda: select_directory_and_scan(result_text, status_label))
 button.pack(pady=30)
 
+# Create the result_text Text widget with scrollbars
 result_text = tk.Text(main_frame, wrap=tk.WORD, height=20, width=110, font=font_style, bg="#3B4252", fg=font_color,
                       spacing2=9)
 result_text.pack(padx=10, pady=10, side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -134,14 +188,6 @@ result_text.pack(padx=10, pady=10, side=tk.LEFT, fill=tk.BOTH, expand=True)
 scroll = tk.Scrollbar(main_frame, command=result_text.yview, bg="#4C566A")
 result_text.configure(yscrollcommand=scroll.set, relief=tk.FLAT)
 scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-# Configure tags for specific text styles in result_text
-result_text.tag_configure("blue_header", foreground="#81A1C1", justify="left")
-result_text.tag_configure("bold", font=("Ubuntu", 14, "bold"))
-result_text.tag_configure("red", foreground="#BF616A")
-result_text.tag_configure("right", justify="right")
-result_text.tag_configure("center", justify="center")
-result_text.tag_configure("spacing", spacing1=10, spacing3=10)  # Add space above and below each line
 
 # Label to display the status of scanning
 status_label = ttk.Label(main_frame, text="", font=font_style)
